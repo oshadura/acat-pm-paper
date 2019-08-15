@@ -4,7 +4,7 @@
 %Uncomment next line if AMS fonts required
 %\usepackage{iopams}
 \usepackage{listings}
-\usepackage{minted}
+%\usepackage{minted}
 \usepackage{subfig}
 \usepackage{hyperref}
 \usepackage{graphicx}
@@ -12,41 +12,50 @@
 \usepackage[utf8]{inputenc}
 \usepackage{tikz}
 \usepackage[labelfont=bf]{caption}
+\usepackage{subfig}
 
-\newminted{cpp}{gobble=2, numbersep=3pt, escapeinside=||, xleftmargin=5mm, framesep=2mm, frame=leftline, baselinestretch=1, fontsize=\scriptsize, linenos=true}
-\newmintinline{cpp}{}
+%\newminted{cpp}{gobble=2, numbersep=3pt, escapeinside=||, xleftmargin=5mm, framesep=2mm, frame=leftline, baselinestretch=1, fontsize=\scriptsize, linenos=true}
+%\newmintinline{cpp}{}
 
 \makeatletter
-\AtBeginEnvironment{minted}{\dontdofcolorbox}
-\def\dontdofcolorbox{\renewcommand\fcolorbox[4][]{##4}}
+%\AtBeginEnvironment{minted}{\dontdofcolorbox}
+%\def\dontdofcolorbox{\renewcommand\fcolorbox[4][]{##4}}
 \makeatother
 
 \begin{document}
 
 \title{Evolution of ROOT package management}
 
-\author{Oksana Shadura [1],  Brian Paul Bockelman  [2],  Vassil Vassilev [3]}
-\address{[1] University of Nebraska-Lincoln, USA, [2] Morgridge Institute for Research, USA, [3] Princeton University, USA}
+\author{Oksana Shadura \textsuperscript{1},  Brian Paul Bockelman  \textsuperscript{2},  Vassil Vassilev \textsuperscript{3}}
+\address{ \textsuperscript{1} University of Nebraska-Lincoln, USA \\
+\textsuperscript{2} Morgridge Institute for Research, USA \\
+\textsuperscript{3} Princeton University, USA}
 \ead{[1] oksana.shadura@cern.ch, [2] bbockelman@morgridge.org, [3] vvasilev@cern.ch}
 \vspace{10pt}
 
 \begin{abstract}
 ROOT is a large code base with a complex set of build-time dependencies; there is a significant difference in compilation time between the “core” of ROOT and the full-fledged deployment. We present results on a “delayed build” for internal ROOT packages and external packages. This gives the ability to offer a “lightweight” core of ROOT, later extended by building additional modules to extend the functionality of ROOT. As a part of this work, we have improved the separation of ROOT code into distinct modules and packages with minimal dependencies. This approach gives users better flexibility and the possibility to combine various build features without rebuilding from scratch.
 
-Dependency hell is a common problem found in software and particularly in HEP software ecosystem. We would like to discuss an improvement of artifact management (“lazy-install”) system as a solution to the “dependency hell” problem. HEP software stack usually consists of multiple sub-projects with dependencies. The development model is often distributed, independent and non-coherent among the sub-projects. We believe that software should be designed to take advantage of other software components that are already available, or have already been designed and implemented for use elsewhere rather than "reinventing the wheel". In our contribution, we will present our approach to artifact management system of ROOT together with a set of examples and use cases.
+Dependency hell is a common problem found in software and particularly in HEP software ecosystem. We would like to discuss an improvement of artifact management (“lazy-install”) system as a solution to the “dependency hell” problem.
+
+HEP software stack usually consists of multiple sub-projects with dependencies. The development model is often distributed, independent and non-coherent among the sub-projects. We believe that software should be designed to take advantage of other software components that are already available, or have already been designed and implemented for use elsewhere rather than "reinventing the wheel". 
+
+The main idea is to build the ROOT project and all of its dependencies recursively and incrementally, making it fundamentally different than just adding one external project and rebuilding from scratch. In addition, this allows to keep a list of dependencies to be able to resolve possible incompatibility of transitive dependencies caused by the versions conflict.
+
+In our contribution, we will present our approach to artifact management system of ROOT together with a set of examples and use cases.
 \end{abstract}
 
 \section{Introduction}
 
 During the different stages of development, through the years ROOT \cite{root} was using various build tools to manage its code, starting from custom build tools going through recently-removed Makefiles and currently using CMake~\cite{cmake} -- a cross-platform build-generator tool.
 
-Programmers love to hate build systems. Following the talks from notorious developer's gatherings and conferences, often build systems and CMake in particular is ridiculed~\cite{moderncmake}. A set of \textit{Modern CMake} tutorials are developed to encourage good practices among the developers' communities. They suggest to start treating CMake as code and think in targets, use properly CMake interface targets either for exports or imports. ROOT is no different, even though the CMake build system is rather new development it can be improved. Using community good practices addresses variety of problems of ROOT build and installation procedures. It is evident that there were a lot of efforts done by the ROOT team to modernize ROOT CMake code and provide a stable and reliable support for ROOT build system~\cite{rootcmake}.
+Build system types are usually a very opinionated topic to discuss. Following the talks from notorious developer's gatherings and conferences, often build systems and CMake in particular is ridiculed~\cite{moderncmake}. A set of \textit{Modern CMake} tutorials are developed to encourage good practices among the developers communities. They suggest to start treating CMake as code and think in targets, use properly CMake interface targets either for exports or imports. ROOT is no different, even though the CMake build system is rather new development it can be improved. Using community good practices addresses variety of problems of ROOT build and installation procedures. It is evident that there were a lot of efforts done by the ROOT team to modernize ROOT CMake code and provide a stable and reliable support for ROOT build system~\cite{rootcmake}.
 
 This paper gives some insights of used good practices and what they allow users to do beyond building and shipping ROOT in the standard way.
 
 \section{Background}
 
-Evolving ROOT CMake to improve ROOT installation also allows decreasing build complexity and enables further decoupling of semantically independent components. Component decoupling is essential for embedding ROOT in other ecosystems as it enables more precise configuration of what the ecosystem actually uses. Ideally, ROOT should allow building ROOT component or package on top of already pre-configured or pre-build ROOT. In order to make the ROOT packaging more flexible and less monolithic and to develop a ROOT-aware dependency manager~\cite{pm}.
+Evolving ROOT CMake to improve ROOT installation also allows decreasing build complexity and enables further decoupling of semantically independent components. Component decoupling is essential for embedding ROOT in other ecosystems as it enables more precise configuration of what the ecosystem actually uses. Ideally, ROOT should allow building ROOT component or package on top of already pre-configured or pre-build ROOT. In order to make the ROOT packaging more flexible and less monolithic was introduced an idea of a ROOT-aware dependency manager~\cite{pm}, that could provide missing functionalities for ROOT.
 
 %Motivation to evolve ROOT CMake build system is based on the idea of providing more straightforward ROOT installations, to improve extensibility, and decrease the complexity of embedding ROOT in other ecosystems. Ideal goals for ROOT modularization project were to enable the possibility to build ROOT component or package on top of already pre-configured or pre-build ROOT, to make the ROOT packaging more flexible and less monolithic and to develop a ROOT-aware dependency manager. \cite{pm}
 
@@ -58,7 +67,7 @@ Current organisation of key components for ROOT build system is very stable. The
     \item ROOT dependencies divided in two groups: dependencies  hosted by ROOT - \textit{ROOT builtins} and external OS package dependencies.
 \end{enumerate}
 
-ROOT CMake build options are divided into the two groups: 10 \% build features, such as \textit{cxx11, cxx14, pch, cling} and 90 \% build options such as \textit{gsl\_shared, xml}. Both groups are interdependent and sometimes outdated. The ROOT options are named after directory hosting a library's sources and CMakeLists.txt. That's why sometimes it looks like ROOT CMake options has an ambiguous naming convention and user doesn't know what will be enabled with the particular option. 
+ROOT CMake build options are divided into the two groups: few build features, such as \textit{cxxmodules, runtime\_cxxmodules} and multiple build options such as \textit{gsl\_shared, xml}. Both groups are interdependent and sometimes looks outdated. The ROOT options are named after directory hosting a library's sources and CMakeLists.txt. That's why sometimes it looks like ROOT CMake options has an ambiguous naming convention and user doesn't know what will be enabled with the particular option. 
 
 Imagine situation when user is requesting to build ROOT "Core" libraries (libCore, libCling, and libRIO) and to enable machine learning libraries on of them via TMVA option. Outcome will be that instead of enabling only TMVA option, the user will enable other not requested $N$ libraries. This example helps to explain the missing build functionality in ROOT, the possibility of the delayed builds.
 
@@ -82,7 +91,7 @@ The main intention here is to arrange existing ROOT components into layers. For 
   (core) \rightarrow (mathcore)  \rightarrow (mathmore).  
 \end{equation}
 
-Layering concept allows each layer or subpackage to be enabled or disabled independently. It is available via implementation done as an overload of CMake $add\_subdirectory()$ function with iteration loop through special configuration file ROOTPackageMap.cmake, making it similar to a package database. Identical implementation also exists in LLVM project \cite{llvm}: a custom $add\_llvm\_subdirectory()$, $add\_clang\_subdirectory()$ and similar implementations for other LLVM tools \& projects.
+Layering concept allows each layer or subpackage to be enabled or disabled independently. It is available via implementation done as an overload of CMake $add\_subdirectory()$ function with iteration loop through special configuration file, making it similar to a package database. Identical implementation also exists in LLVM project \cite{llvm}: a custom $add\_llvm\_subdirectory()$, $add\_clang\_subdirectory()$ and similar implementations for other LLVM tools and projects.
 
 \begin{figure}[!h]
 \centering
@@ -128,12 +137,12 @@ As a consequence, it will help during some critical for users situations such as
 
 New functionality will help to enable additional range of possibilities for ROOT.
 \begin{itemize}
-    \item ROOT-aware package manager prototype \textit{root-get}: it will enable the ROOT-aware package management with the root-get prototype. \cite{pm}
+    \item ROOT-aware package manager prototype \textit{root-get}: it can enable the ROOT-aware package management with the root-get prototype. \cite{pm}
     \item \textit{OS package management} (e.g. Fedora, Ubuntu and etc.): it will be easier to generate more granular ROOT packages.
     \item Package, dependency and environment manager \textit{Conda}: it will support a root-minimal package to further improve install times. 
 \end{itemize}
 
-A new functionality is expected to be enabled in ROOT 6.20.00 for ROOT C++ modules \cite{cxxmodules} as an experimental option.
+A new functionality is expected to be enabled in ROOT 6.20.00 for ROOT C++ modules \cite{cxxmodules} as an experimental feature.
 
 \section{Acknowledgments}
 
@@ -143,7 +152,7 @@ This work has been supported by U.S. National Science Foundation grant ACI-14503
 \begin{thebibliography}{10}
 
 \bibitem{root}
-R. Brun, F. Rademakers, \textit{ROOT - An Object Oriented Data Analysis Framework}, Nucl. Inst. \& Meth. in Phys. Res. A  \textbf{389} (Proceedings AIHENP'96 Workshop,1997).
+R. Brun, F. Rademakers. ROOT - An Object Oriented Data Analysis Framework. 1997 {\it Nucl. Inst. \& Meth. in Phys. Res. A } \textbf{389}, Proceedings AIHENP'96 Workshop.
 
 \bibitem{cmake}
 GitLab. 2019. CMake / CMake · GitLab. [ONLINE] Available at: https://gitlab.kitware.com/cmake/cmake. [Accessed 24 May 2019]. 
